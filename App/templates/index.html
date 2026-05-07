@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhận diện Hoa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/dist/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-color: #43a047;
+            --primary-hover: #2e7d32;
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            color: #2d3436;
+        }
+
+        .container {
+            background: var(--glass-bg);
+            width: 90%;
+            max-width: 550px;
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+
+        h1 {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #1b5e20;
+            font-size: 1.8rem;
+        }
+
+        p.subtitle {
+            color: #636e72;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+
+        /* Vùng Dropzone chuyên nghiệp */
+        .upload-area {
+            border: 2px dashed #b2bec3;
+            border-radius: 15px;
+            padding: 40px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fdfdfd;
+            position: relative;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: #f1f8e9;
+        }
+
+        .upload-area i {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        #imageInput { display: none; }
+
+        /* Preview Image */
+        #preview {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 20px;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Nút bấm */
+        .btn-predict {
+            background: var(--primary-color);
+            color: white;
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 25px;
+            box-shadow: 0 4px 15px rgba(67, 160, 71, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-predict:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-predict:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        /* Hiệu ứng Loading */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 20px auto;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Kết quả */
+        #result { margin-top: 25px; }
+        .result-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 5px solid var(--primary-color);
+            text-align: left;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .label { font-size: 0.9rem; color: #636e72; }
+        .value { font-size: 1.4rem; font-weight: 600; color: #2d3436; }
+        .confidence-bar {
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.8s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Phân Loại Hoa AI</h1>
+    <p class="subtitle">Nhận diện: Hoa Cúc, Hoa Hồng, Hoa Ly</p>
+
+    <div class="upload-area" onclick="document.getElementById('imageInput').click()" id="dropZone">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <p id="uploadText">Kéo thả ảnh vào đây hoặc click để chọn tệp</p>
+        <img id="preview" src="#" alt="Xem trước ảnh">
+    </div>
+
+    <input type="file" id="imageInput" accept="image/*">
+
+    <button class="btn-predict" onclick="uploadImage()" id="predictBtn">
+        <span id="btnText">Dự đoán ngay</span>
+    </button>
+
+    <div class="loader" id="loader"></div>
+    <div id="result"></div>
+</div>
+
+<script>
+    const imageInput = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const uploadText = document.getElementById('uploadText');
+    const dropZone = document.getElementById('dropZone');
+    const loader = document.getElementById('loader');
+    const resultDiv = document.getElementById('result');
+    const predictBtn = document.getElementById('predictBtn');
+
+
+    imageInput.addEventListener('change', function(e) {
+        handleFiles(e.target.files);
+    });
+
+
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+    dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    };
+
+    function handleFiles(files) {
+        if (files.length > 0) {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                uploadText.style.display = 'none';
+                resultDiv.innerHTML = '';
+            }
+            reader.readAsDataURL(file);
+            imageInput.files = files;
+        }
+    }
+
+    async function uploadImage() {
+        if (imageInput.files.length === 0) {
+            alert("Vui lòng chọn một hình ảnh!");
+            return;
+        }
+
+
+        loader.style.display = 'block';
+        resultDiv.innerHTML = '';
+        predictBtn.disabled = true;
+        document.getElementById('btnText').innerText = "Đang xử lý...";
+
+        const formData = new FormData();
+        formData.append('file', imageInput.files[0]);
+
+        try {
+            const response = await fetch('/predict', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (data.success) {
+                const confidencePercent = (data.confidence * 100).toFixed(2);
+                resultDiv.innerHTML = `
+                    <div class="result-card">
+                        <div class="label">Kết quả dự đoán:</div>
+                        <div class="value" style="color: #d32f2f; font-size: 1.8rem; text-transform: uppercase;">
+                            ${data.class}
+                        </div>
+                        <div class="label" style="margin-top:10px">Độ tin cậy: ${confidencePercent}%</div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `<p style="color:#d63031">Lỗi: ${data.error}</p>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<p style="color:#d63031">Không thể kết nối tới Server!</p>`;
+        } finally {
+            loader.style.display = 'none';
+            predictBtn.disabled = false;
+            document.getElementById('btnText').innerText = "Dự đoán ngay";
+        }
+    }
+</script>
+
+</body>
+</html>
